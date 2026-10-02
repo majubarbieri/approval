@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approval flow builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* neutros: vocabulário comum de produto, ficam como no original */
+    --ink:#1F2223; --ink-2:#404344; --ink-3:#737677; --ink-off:#9C9FA0;
+    --line:#DFE1E2; --line-strong:#BBBEBF; --disabled:#F3F5F6;
+    --surface:#FFFFFF; --canvas:#F7F8F8;
+    --map-bg:#F2F5F4; --map-fio:#E2E6E5; --map-vaga:#BCC7C4; --barra:#A8CFC6;
+    /* a família de marca foi trocada: o azul do original é da empresa */
+    --brand:#1D6B5F; --brand-ink:#15685C; --brand-soft:#DDEFEB; --brand-wash:#E9F1EF;
+    --f:'DM Sans',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--surface);color:var(--ink);font-family:var(--f);
+       font-size:16px;line-height:24px;letter-spacing:-0.011em;
+       -webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+  input{font:inherit;color:inherit;background:none;border:0;padding:0}
+  input:focus{outline:none}
+
+  .app{min-height:100vh;display:flex;flex-direction:column}
+
+  /* ---------- barras ---------- */
+  /* a barra continua ocupando 56px, só perde a linha e o fundo. tirar a altura
+     faria os ícones caírem em cima do painel da direita abaixo de 1200px de janela */
+  .top{height:56px;flex:0 0 56px;display:flex;align-items:center;justify-content:flex-end;
+       gap:8px;padding:0 16px}
+
+  /* as ações saíram da barra de baixo e viraram o último bloco da coluna,
+     alinhadas na mesma margem do conteúdo */
+  .acoes{display:flex;align-items:center;gap:12px;margin-top:28px}
+  /* um cheio só na tela: o de dentro do cartão é contorno */
+  .btn.ghost[disabled]{background:none;border-color:var(--line-strong);color:var(--ink-off)}
+  .btn{height:40px;padding:0 16px;border-radius:8px;font-weight:500;font-size:16px;
+       display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+  .btn.ghost{border:1px solid var(--brand);color:var(--brand)}
+  .btn.ghost:hover{background:var(--brand-wash)}
+  .btn.solid{background:var(--brand);color:#fff}
+  .btn.solid:hover{background:#17584E}
+  .btn[disabled]{background:var(--disabled);color:var(--ink-off);border-color:transparent;cursor:default}
+  .btn[disabled]:hover{background:var(--disabled)}
+
+  /* ---------- corpo ---------- */
+  .body{flex:1 1 auto;overflow:auto;padding:32px 24px 40px}
+  .cols{display:flex;gap:32px;align-items:flex-start;max-width:1136px;margin:0 auto}
+  .main{flex:1 1 auto;min-width:0}
+  .side{flex:0 0 332px;min-width:0;position:sticky;top:0}
+
+  h2{font-size:20px;line-height:32px;font-weight:600;letter-spacing:-0.017em;margin:0 0 16px}
+  .info{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+  .field{flex:1 1 220px;min-width:0;position:relative}
+  .field .box{height:40px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);
+              display:flex;align-items:center;gap:8px;padding:0 12px 0 16px}
+  .field .box:focus-within{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .field input{flex:1 1 auto;min-width:0;font-size:16px;line-height:24px}
+  .lab{position:absolute;top:-8px;left:12px;background:var(--surface);padding:0 4px;
+       font-size:12px;line-height:16px;letter-spacing:0;color:var(--ink-2);white-space:nowrap}
+
+  /* a frase */
+  .sentence{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--ink-2)}
+  .sentence b{font-weight:700}
+  /* flex:0 0 auto é o que impede o chip de encolher abaixo do próprio conteúdo
+     e quebrar o rótulo longe do botão de remover */
+  .chip{display:inline-flex;align-items:center;flex:0 0 auto;height:24px;padding:0 8px;border-radius:16px;
+        background:var(--brand-soft);color:var(--brand-ink);font-size:14px;line-height:22px;white-space:nowrap}
+  .chip.pick{background:var(--brand-wash);color:var(--ink-2);gap:6px}
+  .chip.pick button{flex:0 0 16px}
+  .chip.pick button{display:grid;place-items:center;width:16px;height:16px;color:var(--ink-3);border-radius:50%}
+  .chip.pick button:hover{background:#D7E2DF;color:var(--ink)}
+
+  .rail{display:flex;padding:12px 0}
+  .card{flex:1 1 auto;min-width:0;border:1px solid var(--line);border-radius:8px;
+       box-shadow:inset 3px 0 0 var(--barra);
+       container-type:inline-size}
+  .card .head{padding:16px;color:var(--ink-2)}
+  .card .sep{height:1px;background:var(--line)}
+  .rows{display:flex;flex-direction:column;gap:16px;padding:20px 0}
+  /* quatro colunas fixas: conector, rótulo, controle, lixeira.
+     é a coluna fixa que faz todos os campos começarem no mesmo x, em qualquer condição */
+  /* 174 porque o rótulo mais longo, "the payment method is", precisa de 172px numa linha só */
+  .row{display:grid;grid-template-columns:76px 174px 1fr 24px;gap:8px;padding:0 16px;align-items:center}
+  /* o "If" da primeira condição não é um controle, é a palavra que abre a frase */
+  .fixo{color:var(--ink-3);font-size:15px;line-height:21px;padding-left:10px}
+  .rotulo{color:var(--ink-2);font-size:15px;line-height:21px}
+  .ctrl{min-width:0;display:flex;gap:8px;align-items:center}
+  .ctrl .sel{flex:1 1 auto;min-width:0}
+  .ctrl .money{flex:0 0 144px}
+  .liga{flex:0 0 auto;color:var(--ink-2);font-size:15px;white-space:nowrap}
+  /* sem tipo escolhido não existe rótulo ainda: o campo ocupa também aquela coluna */
+  .largo{grid-column:2 / 4}
+  .trash{height:24px;display:grid;place-items:center;color:var(--ink-3);border-radius:6px}
+  .trash:hover{background:#F2EEEE;color:#B4453F}
+
+  /* selects */
+  .sel{position:relative;min-width:0}
+  /* a emenda entre duas condições: menor e arredondada, para não se ler como mais um campo */
+  .emenda .box{min-height:30px;padding:3px 6px 3px 10px;font-size:13px;width:76px;gap:2px;border-radius:15px}
+  .emenda .caret .div{display:none}
+  .emenda .caret svg{width:16px;height:16px}
+  .sel .box{min-height:40px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);
+            display:flex;align-items:center;gap:8px;padding:6px 12px 6px 16px;cursor:pointer;text-align:left;width:100%}
+  .sel .box:hover{border-color:var(--ink-3)}
+  .sel.open .box{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .sel .vals{flex:1 1 auto;min-width:0;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .sel .ph{color:var(--ink-3)}
+  .sel .caret{flex:0 0 auto;display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+  .sel .caret .div{width:1px;height:20px;background:var(--line)}
+  .sel .caret svg{width:20px;height:20px}
+  .menu{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:100%;
+        background:var(--surface);border:1px solid var(--line);border-radius:8px;
+        box-shadow:0 8px 24px rgba(31,34,35,.12);padding:4px;display:none;max-height:240px;overflow:auto}
+  .sel.open .menu{display:block}
+  .opt{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;
+       font-size:15px;color:var(--ink-2);cursor:pointer;width:100%;text-align:left}
+  .opt:hover{background:var(--brand-wash)}
+  .opt .tick{width:16px;height:16px;flex:0 0 16px;border:1.5px solid var(--line-strong);border-radius:4px;
+             display:grid;place-items:center;color:#fff}
+  .opt[aria-selected=true] .tick{background:var(--brand);border-color:var(--brand)}
+  .opt .tick svg{width:12px;height:12px;opacity:0}
+  .opt[aria-selected=true] .tick svg{opacity:1}
+
+  /* valor */
+  .money{position:relative;min-width:0}
+  .money .box{height:40px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);
+              display:flex;align-items:center;gap:4px;padding:0 16px}
+  .money .box:focus-within{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .money .sym{color:var(--ink-3);flex:0 0 auto}
+  .money input{flex:1 1 auto;min-width:0;text-align:right;font-variant-numeric:tabular-nums}
+  .money .cur{color:var(--ink-off);flex:0 0 auto;width:36px;text-align:center}
+  .money.ruim .box{border-color:#B4453F}
+  .money.ruim .box:focus-within{box-shadow:0 0 0 1px #B4453F}
+  /* na coluna do campo o aviso quebraria em três linhas; como célula da grade ele tem 400px */
+  .erro{grid-column:3 / 4;color:#B4453F;font-size:12px;line-height:16px;letter-spacing:0;margin:0}
+
+  .foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px 16px}
+  .add{display:inline-flex;align-items:center;gap:8px;padding:8px 4px;border-radius:8px;
+       color:var(--brand);font-weight:500}
+  .add:hover{color:#17584E}
+  .add svg{width:22px;height:22px}
+  .tail{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+  .tail b{font-weight:600}
+
+  /* ---------- mapa ---------- */
+  /* painel preenchido, sem borda. os passos é que têm fio: num fundo tão claro
+     a diferença de tom quase não existe (1,10 de contraste), e o que o olho lê é a aresta */
+  .map{border-radius:14px;padding:22px 20px;background:var(--map-bg)}
+  .map h3{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:16px;font-weight:600}
+  .map h3 svg{width:20px;height:20px;color:var(--brand)}
+  .gatilho{font-size:14px;line-height:22px;color:var(--ink-2);margin:0 0 12px}
+  .passo{background:var(--surface);border:1px solid var(--map-fio);border-radius:10px;
+         padding:11px 14px;margin:0 0 8px;display:flex;gap:11px;align-items:baseline}
+  .passo .n{flex:0 0 auto;font-size:11px;line-height:16px;font-weight:700;color:var(--brand);
+            letter-spacing:.04em;padding-top:2px}
+  .passo .cont{flex:1 1 auto;min-width:0}
+  .passo .k{display:block;font-size:12px;line-height:17px;color:var(--ink-3)}
+  .passo .vv{font-size:14px;line-height:21px;font-weight:600;color:var(--ink);word-break:break-word}
+  /* a condição que ainda não existe não é um passo apagado, é outra coisa: contorno vazio */
+  .passo.vaga{background:transparent;border:1.5px dashed var(--map-vaga)}
+  .passo.vaga .n{color:var(--ink-off)}
+  .passo.vaga .vv{font-weight:400;color:var(--ink-off)}
+  .fim{font-size:13px;line-height:20px;color:var(--ink-3);margin:12px 0 0;padding-left:2px}
+
+  /* no tamanho cheio o cartão tem 740px e a condição cabe em quatro colunas.
+     o limite é 734: a condição de valor precisa de 403px de controle, e tudo que
+     não é controle ocupa 332px, logo 735 é o mínimo. abaixo disso cada peça ocupa uma linha.
+     quem manda é a largura do cartão, não a da janela */
+  @container (max-width: 734px){
+    .row{grid-template-columns:1fr 24px;gap:10px}
+    .row > .fixo,.row > .emenda,.rotulo,.ctrl,.largo{grid-column:1 / 2}
+    /* a caixa do And é 100% da coluna, e aqui a coluna é a linha inteira: trava em 76 */
+    .row > .emenda{justify-self:start;width:76px}
+    .trash{grid-row:1;grid-column:2}
+    .erro{grid-column:1 / 2}
+    .ctrl{flex-wrap:wrap}
+    .ctrl .money{flex:1 1 140px}
+    .rows{gap:24px}
+  }
+
+
+  @media (max-width:980px){
+    .cols{flex-direction:column;gap:24px}
+    /* empilhado, .cols vira coluna com align-items:flex-start, e aí os filhos
+       encolhem até o conteúdo em vez de ocupar a largura. os dois precisam esticar */
+    .main{align-self:stretch;width:100%}
+    .side{position:static;flex:1 1 auto;width:100%;align-self:stretch}
+  }
+  @media (max-width:620px){
+    .body{padding:24px 16px 32px}
+    .top{padding-left:16px;padding-right:16px}
+    .row{padding:0 12px}
+    .rows{padding:16px 0}
+    /* sem quebra, "Add condition" e o botão lado a lado forçam 386px de largura mínima */
+    .foot{padding:0 12px 12px;flex-wrap:wrap}
+    .btn{flex:1 1 auto}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <button class="icbtn" aria-label="Help">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" width="20" height="20">
+        <circle cx="10" cy="10" r="7.5"/><path d="M8.2 7.8a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.8.6-.8 1.1v.4"/><circle cx="10" cy="14" r=".7" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+    <button class="icbtn" aria-label="Close">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" width="20" height="20"><path d="M5 5l10 10M15 5L5 15"/></svg>
+    </button>
+  </div>
+
+  <div class="body">
+    <div class="cols">
+      <div class="main">
+        <h2>Information</h2>
+        <div class="info">
+          <div class="field"><span class="lab">Flow name</span>
+            <div class="box"><input id="nome" value="Travel flow" aria-label="Flow name"></div></div>
+          <div class="field"><span class="lab">Description (Optional)</span>
+            <div class="box"><input id="desc" value="Approval flow for travel requests." aria-label="Description"></div></div>
+        </div>
+
+        <h2>Workflow</h2>
+        <p class="sentence" style="margin:0">
+          <b>When</b> a <span class="chip">reimbursement</span> is requested:
+        </p>
+
+        <div class="rail">
+          <div class="card">
+            <p class="head" style="margin:0">Set the conditions the request must meet.</p>
+            <div class="sep"></div>
+            <div class="rows" id="linhas"></div>
+            <div class="foot">
+              <button class="add" id="btAdd">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 6v12M6 12h12"/></svg>
+                Add condition
+              </button>
+              <button class="btn ghost" id="btSave" disabled>Save and go to approvers</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="tail" style="margin:0">
+          If no conditions are met, <b>trigger the next flow.</b>
+        </p>
+
+        <div class="acoes">
+          <button class="btn solid" id="btCreate" disabled>Create flow</button>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="map">
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="12" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M8.4 6H13a2 2 0 0 1 2 2v2.2M8.4 18H13a2 2 0 0 0 2-2v-2.2"/></svg>
+            Workflow map
+          </h3>
+          <div id="mapa"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---------- dados inventados ----------
+const CATEGORIAS = ['Travel','Food','Software','Office supplies','Transport','Training'];
+const TIMES = ['Engineering','Marketing','Operations','Sales','Finance'];
+const METODOS = ['Corporate card','Bank transfer','Cash advance'];
+
+const TIPOS = {
+  /* o "If" saiu dos rótulos: ele mora na coluna do conector, junto com o And e o Or */
+  category: {rotulo:'the category is',        mapa:'Categorized as'},
+  amount:   {rotulo:'the amount is',          mapa:'Amount is'},
+  team:     {rotulo:"the requester's team is", mapa:'Requested by'},
+  method:   {rotulo:'the payment method is',   mapa:'Paid with'}
+};
+
+// ---------- estado ----------
+let estado = [
+  {id:1, tipo:'category', valores:['Food','Travel']},
+  {id:2, tipo:'amount', juncao:'And', min:5000, max:10000},
+  {id:3, tipo:null}
+];
+let proximoId = 4;
+let aberto = null;   // id do select aberto
+
+const fmt = n => (n===''||n===null||isNaN(n)) ? '' : Number(n).toLocaleString('en-US');
+const limpa = s => String(s).replace(/[^0-9]/g,'');
+
+// ---------- ícones ----------
+const icSeta = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 8l5 5 5-5"/></svg>';
+const icLixo = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M3.5 5.5h13M8 5.5V4h4v1.5M5.5 5.5l.7 10h7.6l.7-10"/></svg>';
+const icCheck = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+
+// ---------- completude ----------
+function completa(c){
+  if(c.tipo==='category') return c.valores && c.valores.length>0;
+  if(c.tipo==='team' || c.tipo==='method') return c.valores && c.valores.length>0;
+  if(c.tipo==='amount') return c.min!=='' && c.min!==null && !isNaN(c.min);
+  return false;
+}
+
+// ---------- desenho das linhas ----------
+function linhaCategoria(c, primeira){
+  const t = TIPOS[c.tipo];
+  const vals = (c.valores||[]).map(v=>
+    `<span class="chip pick">${v}<button data-acao="tira" data-id="${c.id}" data-v="${v}" aria-label="Remove ${v}">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button></span>`).join('');
+  const lista = (c.tipo==='category'?CATEGORIAS: c.tipo==='team'?TIMES:METODOS);
+  const opts = lista.map(o=>{
+    const on = (c.valores||[]).includes(o);
+    return `<button class="opt" role="option" aria-selected="${on}" data-acao="marca" data-id="${c.id}" data-v="${o}">
+      <span class="tick">${icCheck}</span>${o}</button>`;}).join('');
+  return `<div class="row">
+    ${conector(c, primeira)}
+    <span class="rotulo">${t.rotulo}</span>
+    <div class="ctrl">
+      <div class="sel ${aberto===c.id?'open':''}" data-sel="${c.id}">
+        <div class="box" role="button" tabindex="0" data-acao="abre" data-id="${c.id}" aria-haspopup="listbox" aria-expanded="${aberto===c.id}">
+          <span class="vals">${vals || '<span class="ph">Select an option</span>'}</span>
+          <span class="caret"><span class="div"></span>${icSeta}</span>
+        </div>
+        <div class="menu" role="listbox">${opts}</div>
+      </div>
+    </div>
+    <button class="trash" data-acao="apaga" data-id="${c.id}" aria-label="Remove condition">${icLixo}</button>
+  </div>`;
+}
+
+// a primeira condição não se junta a nada, então ali a coluna traz a palavra que abre a frase
+function conector(c, primeira){
+  return primeira ? '<span class="fixo">If</span>' : seletorJuncao(c);
+}
+
+function seletorJuncao(c){
+  const v = c.juncao || 'And';
+  return `<div class="sel emenda ${aberto==='j'+c.id?'open':''}" data-sel="j${c.id}">
+    <div class="box" role="button" tabindex="0" data-acao="abre" data-id="j${c.id}" aria-expanded="${aberto==='j'+c.id}">
+      <span class="vals">${v}</span><span class="caret"><span class="div"></span>${icSeta}</span>
+    </div>
+    <div class="menu" role="listbox">
+      ${['And','Or'].map(o=>`<button class="opt" role="option" aria-selected="${o===v}"
+        data-acao="juncao" data-id="${c.id}" data-v="${o}"><span class="tick">${icCheck}</span>${o}</button>`).join('')}
+    </div></div>`;
+}
+
+function temLimiteInvalido(c){
+  return c.tipo==='amount'
+      && c.min!=='' && c.min!==null && !isNaN(c.min)
+      && c.max!=='' && c.max!==null && !isNaN(c.max)
+      && Number(c.max) <= Number(c.min);
+}
+
+function linhaValor(c, primeira){
+  const ruim = temLimiteInvalido(c);
+  return `<div class="row">
+    ${conector(c, primeira)}
+    <span class="rotulo">${TIPOS.amount.rotulo}</span>
+    <div class="ctrl">
+      <div class="money"><span class="lab">Greater or equal</span>
+        <div class="box"><span class="sym">$</span>
+          <input inputmode="numeric" value="${fmt(c.min)}" data-acao="min" data-id="${c.id}" aria-label="Minimum amount">
+          <span class="cur">USD</span></div></div>
+      <span class="liga">and less than</span>
+      <div class="money${ruim?' ruim':''}"><span class="lab">Limit (Optional)</span>
+        <div class="box"><span class="sym">$</span>
+          <input inputmode="numeric" value="${fmt(c.max)}" data-acao="max" data-id="${c.id}"
+                 aria-label="Maximum amount" aria-invalid="${ruim}">
+          <span class="cur">USD</span></div></div>
+    </div>
+    <button class="trash" data-acao="apaga" data-id="${c.id}" aria-label="Remove condition">${icLixo}</button>
+    ${ruim?'<p class="erro">The limit has to be higher than the minimum.</p>':''}
+  </div>`;
+}
+
+function linhaVazia(c, primeira){
+  const usados = estado.map(x=>x.tipo).filter(Boolean);
+  const livres = Object.keys(TIPOS).filter(k=>!usados.includes(k));
+  const opts = livres.map(k=>`<button class="opt" role="option" aria-selected="false"
+      data-acao="tipo" data-id="${c.id}" data-v="${k}"><span class="tick">${icCheck}</span>${TIPOS[k].mapa}</button>`).join('')
+    || '<p style="padding:10px;margin:0;color:var(--ink-3);font-size:14px">No conditions left to add.</p>';
+  return `<div class="row">
+    ${conector(c, primeira)}
+    <div class="sel largo ${aberto===c.id?'open':''}" data-sel="${c.id}">
+      <div class="box" role="button" tabindex="0" data-acao="abre" data-id="${c.id}" aria-expanded="${aberto===c.id}">
+        <span class="vals"><span class="ph">Select a condition</span></span>
+        <span class="caret"><span class="div"></span>${icSeta}</span>
+      </div>
+      <div class="menu" role="listbox">${opts}</div>
+    </div>
+    <button class="trash" data-acao="apaga" data-id="${c.id}" aria-label="Remove condition">${icLixo}</button>
+  </div>`;
+}
+
+// ---------- mapa ----------
+function frase(c){
+  if(c.tipo==='category'){
+    const v=c.valores||[]; if(!v.length) return null;
+    return {k:'Categorized as', v: v.join(' or ')};
+  }
+  if(c.tipo==='team'){const v=c.valores||[]; if(!v.length) return null; return {k:'Requested by', v:v.join(' or ')};}
+  if(c.tipo==='method'){const v=c.valores||[]; if(!v.length) return null; return {k:'Paid with', v:v.join(' or ')};}
+  if(c.tipo==='amount'){
+    if(c.min===''||c.min===null||isNaN(c.min)) return null;
+    const a='$'+fmt(c.min)+' USD';
+    // limite menor que o mínimo não é faixa nenhuma: o mapa não inventa uma
+    if(temLimiteInvalido(c)) return {k:'Amount is', v:a+' or more'};
+    return {k:'Amount is', v: (c.max!==''&&c.max!==null&&!isNaN(c.max)) ? a+' < $'+fmt(c.max)+' USD' : a+' or more'};
+  }
+  return null;
+}
+
+const doisDigitos = n => String(n).padStart(2,'0');
+
+function desenhaMapa(){
+  let h = `<p class="gatilho">When a <span class="chip">reimbursement</span> is requested</p>`;
+  let feitas = 0, pendentes = 0;
+  estado.forEach((c,i)=>{
+    const f = frase(c);
+    if(f){
+      feitas++;
+      const lig = i>0 && c.juncao==='Or' ? ' <span style="color:var(--ink-3)">(or)</span>' : '';
+      h += `<div class="passo"><span class="n">${doisDigitos(feitas)}</span>
+        <span class="cont"><span class="k">${f.k}${lig}</span><span class="vv">${f.v}</span></span></div>`;
+    } else pendentes++;
+  });
+  // uma vaga só, não importa quantas linhas incompletas existam: o mapa mostra o que falta, não o rascunho
+  if(pendentes) h += `<div class="passo vaga"><span class="n">${doisDigitos(feitas+1)}</span>
+    <span class="cont"><span class="vv">New condition</span></span></div>`;
+  h += `<p class="fim">If nothing matches, the next flow takes over</p>`;
+  document.getElementById('mapa').innerHTML = h;
+}
+
+// ---------- render ----------
+function desenha(){
+  const alvo = document.getElementById('linhas');
+  let primeiraFeita = false;
+  alvo.innerHTML = estado.map(c=>{
+    const primeira = !primeiraFeita;
+    if(c.tipo) primeiraFeita = true;
+    if(c.tipo==='amount') return linhaValor(c, primeira);
+    if(c.tipo) return linhaCategoria(c, primeira);
+    return linhaVazia(c, primeira);
+  }).join('');
+  desenhaMapa();
+  const ok = estado.some(completa);
+  document.getElementById('btSave').disabled = !ok;
+  document.getElementById('btCreate').disabled = !ok;
+}
+
+// ---------- eventos ----------
+document.addEventListener('click', e=>{
+  const alvo = e.target.closest('[data-acao]');
+  if(!alvo){ if(aberto!==null){ aberto=null; desenha(); } return; }
+  const acao = alvo.dataset.acao, id = alvo.dataset.id, v = alvo.dataset.v;
+  const num = parseInt(String(id).replace('j',''),10);
+  const c = estado.find(x=>x.id===num);
+
+  if(acao==='abre'){ aberto = (aberto===id) ? null : (String(id).startsWith('j')? id : num); desenha(); return; }
+  if(acao==='marca'){
+    c.valores = c.valores||[];
+    c.valores = c.valores.includes(v) ? c.valores.filter(x=>x!==v) : [...c.valores, v];
+    desenha(); return;
+  }
+  if(acao==='tira'){ c.valores = (c.valores||[]).filter(x=>x!==v); desenha(); return; }
+  if(acao==='juncao'){ c.juncao = v; aberto=null; desenha(); return; }
+  if(acao==='tipo'){
+    c.tipo = v; aberto=null;
+    if(v==='amount'){ c.min=''; c.max=''; } else { c.valores=[]; }
+    if(estado.indexOf(c)>0) c.juncao = c.juncao||'And';
+    desenha(); return;
+  }
+  if(acao==='apaga'){
+    estado = estado.filter(x=>x.id!==num);
+    if(!estado.length) estado=[{id:proximoId++, tipo:null}];
+    aberto=null; desenha(); return;
+  }
+});
+
+document.addEventListener('input', e=>{
+  const alvo = e.target.closest('[data-acao=min],[data-acao=max]');
+  if(!alvo) return;
+  const c = estado.find(x=>x.id===parseInt(alvo.dataset.id,10));
+  const cru = limpa(alvo.value);
+  c[alvo.dataset.acao] = cru===''? '' : parseInt(cru,10);
+  alvo.value = fmt(c[alvo.dataset.acao]);
+  // mantém o cursor no fim, que é onde se digita valor
+  alvo.setSelectionRange(alvo.value.length, alvo.value.length);
+
+  // o estado de erro é atualizado no lugar, sem redesenhar a linha:
+  // redesenhar tiraria o foco do campo no meio da digitação
+  const linha = alvo.closest('.row');
+  const caixaMax = linha.querySelector('[data-acao=max]')?.closest('.money');
+  if(caixaMax){
+    const ruim = temLimiteInvalido(c);
+    caixaMax.classList.toggle('ruim', ruim);
+    caixaMax.querySelector('[data-acao=max]').setAttribute('aria-invalid', ruim);
+    // o aviso é célula da linha, não filho do campo: dentro do campo ele quebraria em três linhas
+    let p = linha.querySelector(':scope > .erro');
+    if(ruim && !p){ p=document.createElement('p'); p.className='erro';
+      p.textContent='The limit has to be higher than the minimum.'; linha.appendChild(p); }
+    if(!ruim && p) p.remove();
+  }
+
+  desenhaMapa();
+  const ok = estado.some(completa);
+  document.getElementById('btSave').disabled = !ok;
+  document.getElementById('btCreate').disabled = !ok;
+});
+
+document.getElementById('btAdd').addEventListener('click', ()=>{
+  estado.push({id:proximoId++, tipo:null, juncao:'And'});
+  aberto=null; desenha();
+});
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && aberto!==null){ aberto=null; desenha(); return; }
+  // o box virou div com role=button, então o teclado precisa ser ligado na mão
+  const cx = e.target.closest?.('.sel .box[role=button]');
+  if(cx && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); cx.click(); }
+});
+
+desenha();
+</script>
+</body>
+</html>
